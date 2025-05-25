@@ -4,11 +4,12 @@ CC = gcc
 # 编译选项（添加 -g 以便调试，可选 -O2 优化）
 CFLAGS = -Wall -Wextra -g
 
+LDFLAGS = -laio -lpthread
 # 头文件路径（如果有子目录可以加 -Iinclude 等）
 INCLUDES = 
 
 # 源文件
-SRCS = call_fio.c librio.c raidio.c rio_check.c
+SRCS = src/libaio_run.c src/librio.c src/raidio.c src/rio_check.c
 
 # 目标文件（.o）
 OBJS = $(SRCS:.c=.o)
@@ -21,7 +22,7 @@ all: $(TARGET)
 
 # 链接
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET)
+	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
 # 编译每个 .c 为 .o
 %.o: %.c raidio.h

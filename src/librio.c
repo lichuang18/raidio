@@ -59,6 +59,8 @@ void print_help(const char *progname) {
 	printf("  --size <io_size>     Optional. Request IO size\n");
 	printf("  --iodepth <queue depth>     Optional. 并发IO数\n");
 	printf("  --thread_n <multi threads>     Optional. 运行的线程数\n");
+	printf("  --direct <page cache>     Optional. 是否绕过page cache\n");
+	printf("  --wrcache <wrcache>     Optional. 硬件raid卡写回模式, WT / WB\n");
     printf("  --help          Show this help message\n");
 }
 
@@ -78,12 +80,14 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
 		{"size", required_argument, 0, 's'},
 		{"iodepth", required_argument, 0, 'q'},
 		{"thread_n", required_argument, 0, 't'},
+		{"direct", required_argument, 0, 'd'},	
+		{"wrcache", required_argument, 0, 'w'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:b:r:h:s:i:q:t", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:b:r:h:s:i:q:t:d:w", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f':
                 a->file = optarg;
@@ -120,6 +124,12 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
 			case 't':
                 a->thread_n = atoi(optarg);
                 break;
+			case 'd':
+                a->direct = atoi(optarg);
+                break;
+			case 'w':
+                a->wrcache = optarg;
+                break;
 			case 'h':
                 print_help(argv[0]);
                 exit(0);
@@ -146,6 +156,6 @@ int run_rio(struct rio_args *args){
 
 void clean_rio(void)
 {
-	printf("TO DO ...   --free operation!!!\n");
+	printf("TO DO ...   --free some resource!!!\n");
 }
 
