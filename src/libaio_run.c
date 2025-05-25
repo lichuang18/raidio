@@ -52,6 +52,7 @@ void *io_thread(void *arg) {
     struct {
         void *buf;
         struct iocb iocb;
+        struct timespec submit_ts;
     } reqs[ctx->qd];
     
     for (int i = 0; i < ctx->qd; ++i) {
@@ -75,7 +76,6 @@ void *io_thread(void *arg) {
 
     gettimeofday(&start, NULL);
     while(nr_requests > submitteds){
-
         u_int64_t ios_to_submit = (nr_requests - submitteds) < ctx->qd ? (nr_requests - submitteds) : ctx->qd;
         for (int i = 0; i < ios_to_submit; ++i) {
             u_int64_t blk_index;
@@ -91,11 +91,12 @@ void *io_thread(void *arg) {
             } else{
                 io_prep_pwrite(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, offset);
             }
+            if(DEBUG_LAT) clock_gettime(CLOCK_REALTIME, &reqs[i].submit_ts);
             iocbs[i] = &reqs[i].iocb;
             if(DEBUG_LBA){
-            clock_gettime(CLOCK_REALTIME, &log_record);  
-            printf("Time: %ld.%09ld | Thread %lu: Submit IO #%lu to LBA: %lu (offset=%lu)\n",
-                log_record.tv_sec, log_record.tv_nsec,pthread_self(), submitteds + i, offset / 512, offset);
+                clock_gettime(CLOCK_REALTIME, &log_record);  
+                printf("Submit | Time: %ld.%09ld | Thread %lu: Submit IO #%lu to LBA: %lu (offset=%lu)\n",
+                    log_record.tv_sec, log_record.tv_nsec,pthread_self(), submitteds + i, offset / 512, offset);
             }
         }
         
@@ -109,6 +110,32 @@ void *io_thread(void *arg) {
         int ret = io_getevents(ioc, ios_to_submit, ios_to_submit, events, NULL);
         if (ret < 0) {
             perror("io_getevents");
+        }
+        if(DEBUG_LAT){
+            for (int i = 0; i < ret; ++i) {
+                struct iocb *cb = events[i].obj;
+                // 找到对应 req 的索引
+                int req_idx = -1;
+                for (int j = 0; j < ios_to_submit; ++j) {
+                    if (&reqs[j].iocb == cb) {
+                        req_idx = j;
+                        break;
+                    }
+                }
+
+                if (req_idx != -1) {
+                    struct timespec done_ts;
+                    clock_gettime(CLOCK_REALTIME, &done_ts);
+
+                    long start_us = reqs[req_idx].submit_ts.tv_sec * 1000000 + reqs[req_idx].submit_ts.tv_nsec / 1000;
+                    long end_us = done_ts.tv_sec * 1000000 + done_ts.tv_nsec / 1000;
+                    long latency_us = end_us - start_us;
+
+                    printf("Complete | Time: %ld.%06ld | Thread %lu | IO#%lu | Latency: %ld us\n",
+                        done_ts.tv_sec, done_ts.tv_nsec / 1000,
+                        pthread_self(), completeds + i, latency_us);
+                }
+            }
         }
         completeds += ret;   
     }
