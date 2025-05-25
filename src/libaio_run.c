@@ -25,6 +25,8 @@ typedef struct {
     //for count
     double elapsed_ms;
     int direct;
+    char *log_buf;
+    u_int64_t log_offset;
 } thread_ctx_t;
 
 void *io_thread(void *arg) {
@@ -60,27 +62,41 @@ void *io_thread(void *arg) {
         memset(reqs[i].buf, (strcmp(ctx->rw, "write") == 0 || strcmp(ctx->rw, "randwrite") == 0) ? 0xAB : 0, ctx->bs);
     }
 
-    u_int64_t offset = ctx->offset_start;
-    u_int64_t submitteds = 0;
-    u_int64_t completeds = 0;
+    //u_int64_t offset = ctx->offset_start;
+    u_int64_t submitteds = 0, completeds = 0;
 
+    srand(time(NULL) + pthread_self());
     u_int64_t nr_requests = ctx->size / ctx->bs;
     
     //double total_elapsed_ms = 0;
     double elapsed_ms = 0;
     struct timeval start, end;
+    struct timespec log_record;
+
     gettimeofday(&start, NULL);
     while(nr_requests > submitteds){
 
         u_int64_t ios_to_submit = (nr_requests - submitteds) < ctx->qd ? (nr_requests - submitteds) : ctx->qd;
         for (int i = 0; i < ios_to_submit; ++i) {
-            u_int64_t off = offset +i * ctx->bs;
+            u_int64_t blk_index;
+            if (strcmp(ctx->rw, "randread") == 0 || strcmp(ctx->rw, "randwrite") == 0) {
+                blk_index = rand() % (nr_requests);
+            } else {
+                blk_index = submitteds + i;
+            }
+            u_int64_t offset = ctx->offset_start + blk_index * ctx->bs;
+
             if (strcmp(ctx->rw, "read") == 0 || strcmp(ctx->rw, "randread") == 0){
-                io_prep_pread(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, off);
+                io_prep_pread(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, offset);
             } else{
-                io_prep_pwrite(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, off);
+                io_prep_pwrite(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, offset);
             }
             iocbs[i] = &reqs[i].iocb;
+            if(DEBUG_LBA){
+            clock_gettime(CLOCK_REALTIME, &log_record);  
+            printf("Time: %ld.%09ld | Thread %lu: Submit IO #%lu to LBA: %lu (offset=%lu)\n",
+                log_record.tv_sec, log_record.tv_nsec,pthread_self(), submitteds + i, offset / 512, offset);
+            }
         }
         
         int submitted = io_submit(ioc, ios_to_submit, iocbs);
@@ -94,9 +110,7 @@ void *io_thread(void *arg) {
         if (ret < 0) {
             perror("io_getevents");
         }
-        completeds += ret;
-        offset += ios_to_submit * ctx->bs;
-        //if(DEBUG) printf("In this submit, ios_to_submit: %lld, ctx->qd: %d, ",ios_to_submit,ctx->qd);   
+        completeds += ret;   
     }
     gettimeofday(&end, NULL);
     long start_us = start.tv_sec * 1000000 + start.tv_usec;

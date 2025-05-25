@@ -20,7 +20,7 @@
 #include <time.h>
 #include <math.h>
 #define DEBUG 1
-
+#define DEBUG_LBA 0
 struct rio_args {
 	const char *file; //必需
 	uint64_t block_size; //bs
