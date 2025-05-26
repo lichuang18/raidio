@@ -16,11 +16,7 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
     struct rio_args opt;
 	if (rio_parse_options(argc, argv, &opt))
 		goto done;
-    
-    
-
-
-	if (!is_raid(opt.file)) {
+	if (!is_raid(opt.file[0] ==  '\0')) {
         if (strcmp(opt.rw_type, "read") != 0 &&
             strcmp(opt.rw_type, "randread") != 0 &&
             strcmp(opt.rw_type, "write") != 0 &&

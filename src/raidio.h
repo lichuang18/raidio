@@ -44,12 +44,13 @@ typedef struct {
     int rcache; //1 开启 0关闭  hard
     int pdcache; //1 开启 0关闭 hard
     int optimizer; //1 开启 0关闭 hard
-    int Ugood_disk[64];//可以用来
+    int capabilty;//GB
+    char raid_name[64];
 } raid_config;
 
 
 struct rio_args {
-	const char *file; //必需
+	char file[256]; //必需
 	uint64_t block_size; //bs
 	const char *rw_type; //rw
     const char *ioengine;

@@ -13,7 +13,7 @@
 
 typedef struct {
     int id;
-    const char *file; // sda
+    char file[128]; // sda
     int qd;
     u_int64_t bs;
     char *rw;  // 0=read, 1=write
@@ -41,7 +41,7 @@ void *io_thread(void *arg) {
     char filepath[256];
     snprintf(filepath, sizeof(filepath), "%s", ctx->file);
 
-    if(DEBUG) printf("@@@@  direct : %d\n",ctx->direct);
+    if(DEBUG) printf("@@@@  direct : %d,file:%s\n",ctx->direct,ctx->file);
     int fd = open(filepath, O_RDWR | (ctx->direct ? O_DIRECT : 0));
     if (fd < 0) {
         perror("open");return 1;
@@ -168,7 +168,9 @@ int libaio_run(struct rio_args *args) {
     thread_ctx_t *contexts = malloc(num_threads * sizeof(thread_ctx_t));
 
     for (int i = 0; i < num_threads; i++) {
-        contexts[i].file = args->file;
+        //contexts[i].file = args->file;
+        strncpy(contexts[i].file, args->file, sizeof(contexts[i].file) - 1);
+        contexts[i].file[sizeof(contexts[i].file) - 1] = '\0'; // 确保结尾安全
         contexts[i].qd = qd;
         contexts[i].bs = args->block_size;
         contexts[i].rw = args->rw_type;
@@ -188,6 +190,7 @@ int libaio_run(struct rio_args *args) {
     for (int i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
     }
+    
     int total_io = 0;
     double max_time = 0, total_time = 0;
     
@@ -197,16 +200,14 @@ int libaio_run(struct rio_args *args) {
         if (contexts[i].elapsed_ms > max_time)
             max_time = contexts[i].elapsed_ms;
     }
-
     if(DEBUG){
-        double mb = total_io * args->block_size / 1024.0 / 1024.0;
+        double mb = (double)total_io * args->block_size / 1024.0 / 1024.0;
         printf("\n== %s Summary ==\n", args->rw_type);
         printf("Threads    : %d\n", num_threads);
-        printf("Total MB   : %.2f MB\n", mb);
+        printf("Total MB   : %.2f MB(%d 个%lld)\n", mb, total_io, args->block_size);
         printf("Max Time   : %.2f sec\n", total_time/1000);
         printf("Total BW   : %.2f MB/s\n\n", mb / max_time * 1000);
     }
-
     // double toutal_size = (double)total_io*bs/1024/1024;
     // printf("Total completed IO: %d, block size: %d, IO_SIZE=%.2f MB\n", total_io, bs,toutal_size);
     // printf("Max time: %.2f ms (max of threads)\n", max_time);
