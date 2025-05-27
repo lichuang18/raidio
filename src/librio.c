@@ -1,4 +1,6 @@
 
+#define _XOPEN_SOURCE
+#define _POSIX_C_SOURCE 200809L
 #include <string.h>
 #include <signal.h>
 #include <stdint.h>
@@ -23,7 +25,7 @@ int check_vd_initialization_success(const char *cli, int vd_number) {
     char check_des[256];
     snprintf(check_des, sizeof(check_des), "Initialization complete on VD %02d", vd_number);
    
-    int ret = system(cmd);
+    system(cmd);
 
     FILE *fp = fopen("/tmp/raid_events", "r");
     if (!fp) {
@@ -357,8 +359,8 @@ uint64_t parse_size(const char *str) {
     switch (unit) {
         case 'K': multiplier = 1024; break;
         case 'M': multiplier = 1024 * 1024; break;
-        case 'G': multiplier = 1024 * 1024 * 1024; break;
-		case 'T': multiplier = 1024 * 1024 * 1024 * 1024; break;
+        case 'G': multiplier = 1024ULL * 1024 * 1024; break;
+		case 'T': multiplier = 1024ULL * 1024 * 1024 * 1024; break;
         default:
             if (isdigit(unit)) {
                 multiplier = 1;
@@ -426,6 +428,7 @@ void print_help(const char *progname) {
     printf("  --num_memebers <disks>     Optional. 硬件raid卡组建的raid成员数,default 1\n");
     printf("  --capability <disks size>     Optional. 硬件raid卡组建的raid盘容量,default 100GB\n");
     printf("  --raid_name <raid name>     Optional. 硬件raid卡组建的raid名称\n");
+    printf("  --fk_plot <plot>     Optional. raid测试快速可视化结果\n");
     printf("  --help          Show this help message\n");
 }
 
@@ -446,6 +449,7 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
         {"num_members", required_argument, 0, 'k'},
         {"capability", required_argument, 0, 'l'},
         {"raid_name", required_argument, 0, 'm'},
+        {"fk_plot", required_argument, 0, 'n'},
         {"iodepth", required_argument, 0, 'q'},
         {"rw", required_argument, 0, 'r'},
 		{"size", required_argument, 0, 's'},
@@ -468,7 +472,7 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
     a->raid_cf.raid_name[0] = '\0'; 
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:b:r:h:s:i:q:t:d:w:a:c:e:g:j:k:l:m", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:b:r:h:s:i:q:t:d:w:a:c:e:g:j:k:l:m:n", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f': 
                 strncpy(a->file, optarg, sizeof(a->file) - 1);
@@ -518,10 +522,23 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
                 strncpy(a->raid_cf.raid_name, optarg, sizeof(a->raid_cf.raid_name) - 1);
                 a->raid_cf.raid_name[sizeof(a->raid_cf.raid_name) - 1] = '\0';  // 确保结尾
                 break;
+            case 'n': 
+                if (strcmp(optarg, "bw") == 0) {
+                    a->fk_plot = FAST_PLOT_BW;
+                } else if (strcmp(optarg, "iops") == 0) {
+                    a->fk_plot = FAST_PLOT_IOPS;
+                } else if (strcmp(optarg, "lat") == 0) {
+                    a->fk_plot = FAST_PLOT_TAILLAT;
+                } else {
+                    fprintf(stderr, "Unknown fk_plot type: %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                }
+                break;
 			case 'h': print_help(argv[0]); exit(0);
             default: print_help(argv[0]); return 1;
         }
     }
+
     print_rio_args(a);
     if (a->raid_cf.raid_type == RAID_TYPE_SOFT) { 
         // 软 RAID 分支逻辑
@@ -607,11 +624,15 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
 
 int run_rio(struct rio_args *args){
     printf("TODO...   --call rio\n");
-	printf("[RIO] file=%s, bs=%lld, rw=%s, ", args->file, args->block_size, args->rw_type);
-	printf("ioengine=%s, size=%lld, iodepth=%d, thread_n=%d\n", args->ioengine, args->size, args->iodepth, args->thread_n);
+	printf("[RIO] file=%s, bs=%" PRIu64 ", rw=%s, ", args->file, args->block_size, args->rw_type);
+	printf("ioengine=%s, size=%" PRIu64 ", iodepth=%d, thread_n=%d\n", args->ioengine, args->size, args->iodepth, args->thread_n);
 	return 0;
 }
 
+
+void plot(){
+    printf("Generate plot successful...\n");
+}
 void clean_rio(void)
 {
 	printf("TO DO ...   --free some resource!!!\n");

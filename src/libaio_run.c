@@ -44,7 +44,7 @@ void *io_thread(void *arg) {
     if(DEBUG) printf("@@@@  direct : %d,file:%s\n",ctx->direct,ctx->file);
     int fd = open(filepath, O_RDWR | (ctx->direct ? O_DIRECT : 0));
     if (fd < 0) {
-        perror("open");return 1;
+        perror("open");return NULL;
     }
 
     struct iocb *iocbs[ctx->qd];
@@ -65,19 +65,16 @@ void *io_thread(void *arg) {
 
     //u_int64_t offset = ctx->offset_start;
     u_int64_t submitteds = 0, completeds = 0;
-
     srand(time(NULL) + pthread_self());
     u_int64_t nr_requests = ctx->size / ctx->bs;
-    
-    //double total_elapsed_ms = 0;
     double elapsed_ms = 0;
     struct timeval start, end;
     struct timespec log_record;
 
     gettimeofday(&start, NULL);
     while(nr_requests > submitteds){
-        u_int64_t ios_to_submit = (nr_requests - submitteds) < ctx->qd ? (nr_requests - submitteds) : ctx->qd;
-        for (int i = 0; i < ios_to_submit; ++i) {
+        u_int64_t ios_to_submit = (nr_requests - submitteds) < (u_int64_t)ctx->qd ? (nr_requests - submitteds) : (u_int64_t)ctx->qd;
+        for (size_t i = 0; i < ios_to_submit; ++i) {
             u_int64_t blk_index;
             if (strcmp(ctx->rw, "randread") == 0 || strcmp(ctx->rw, "randwrite") == 0) {
                 blk_index = rand() % (nr_requests);
@@ -116,7 +113,7 @@ void *io_thread(void *arg) {
                 struct iocb *cb = events[i].obj;
                 // 找到对应 req 的索引
                 int req_idx = -1;
-                for (int j = 0; j < ios_to_submit; ++j) {
+                for (size_t j = 0; j < ios_to_submit; ++j) {
                     if (&reqs[j].iocb == cb) {
                         req_idx = j;
                         break;
@@ -200,18 +197,22 @@ int libaio_run(struct rio_args *args) {
         if (contexts[i].elapsed_ms > max_time)
             max_time = contexts[i].elapsed_ms;
     }
+    double mb = (double)total_io * args->block_size / 1024.0 / 1024.0;
     if(DEBUG){
-        double mb = (double)total_io * args->block_size / 1024.0 / 1024.0;
-        printf("\n== %s Summary ==\n", args->rw_type);
-        printf("Threads    : %d\n", num_threads);
-        printf("Total MB   : %.2f MB(%d 个%lld)\n", mb, total_io, args->block_size);
-        printf("Max Time   : %.2f sec\n", total_time/1000);
-        printf("Total BW   : %.2f MB/s\n\n", mb / max_time * 1000);
+        printf("\n== %s Summary  ==\n", args->rw_type);
+        printf("Threads   : %d\n", num_threads);
+        printf("qd        : %d\n", qd);
+        printf("Total MB  : %.2f MB(ios: %d, bs: %" PRIu64 "KB)\n", mb, total_io, args->block_size/1024);
+        printf("Max Time  : %.2f sec\n", total_time/1000);
+        printf("Total BW  : %.2f MB/s\n\n", mb / max_time * 1000);
     }
-    // double toutal_size = (double)total_io*bs/1024/1024;
-    // printf("Total completed IO: %d, block size: %d, IO_SIZE=%.2f MB\n", total_io, bs,toutal_size);
-    // printf("Max time: %.2f ms (max of threads)\n", max_time);
-    // printf("Aggregate IOPS: %.2f, Aggregate BW: %.2f MB/s\n", total_io / (max_time / 1000.0), toutal_size/max_time*1000);
+    FILE *fp1 = fopen("result/raid—results.log", "a");  // 追加写
+
+    if (fp1) {
+        fprintf(fp1, "%s, %d, %d, %.2f\n",args->rw_type, args->iodepth, args->thread_n, mb / max_time * 1000);
+        fclose(fp1);
+    }
+
 
     free(threads);
     free(contexts);

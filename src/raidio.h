@@ -19,9 +19,34 @@
 #include <sys/time.h>
 #include <time.h>
 #include <math.h>
+#include <inttypes.h>  // 为 PRIu64 等宏
 #define DEBUG 1
 #define DEBUG_LBA 0
 #define DEBUG_LAT 0
+
+// plot data
+// struct plot_data_y {
+// 	float iops;
+//     float bw; //MB/s
+//     float lat; //us
+//     float lat_99; //us
+//     float lat_999; //us
+// 	// 可以根据需要扩展更多字段
+// };
+
+// struct plot_data_x {
+// 	struct plot_data_y pd;
+//     int qd[5];// 1 4 16 64 256
+//     int num[4];// 1 4 16 32
+//     int bs[8];// unit KB  4 16 32 64 128 256 x 1024 
+// };
+
+typedef enum {
+    FAST_PLOT_BW,
+    FAST_PLOT_IOPS,
+    FAST_PLOT_TAILLAT
+} fast_plots;
+
 
 typedef struct {
     int eid;
@@ -52,13 +77,14 @@ typedef struct {
 struct rio_args {
 	char file[256]; //必需
 	uint64_t block_size; //bs
-	const char *rw_type; //rw
+	char *rw_type; //rw
     const char *ioengine;
     uint64_t size;
     int iodepth;
     int thread_n;
     int direct;
     raid_config raid_cf;
+    fast_plots fk_plot;
 	// 可以根据需要扩展更多字段
 };
 
