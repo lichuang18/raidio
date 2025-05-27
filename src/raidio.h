@@ -22,7 +22,9 @@
 #include <inttypes.h>  // 为 PRIu64 等宏
 #define DEBUG 1
 #define DEBUG_LBA 0
-#define DEBUG_LAT 0
+
+
+#define LOG_LAT 1
 
 // plot data
 // struct plot_data_y {
@@ -47,6 +49,7 @@ typedef enum {
     FAST_PLOT_TAILLAT
 } fast_plots;
 
+extern const char *fast_plot_names[];
 
 typedef struct {
     int eid;
@@ -96,9 +99,9 @@ extern int rio_parse_options(int, char **, struct rio_args *args);
 extern int libaio_run(struct rio_args *args);
 extern int run_rio(struct rio_args *args);
 extern void clean_rio(void);
+extern void plot(fast_plots fk_plot);
 extern uint64_t parse_size(const char *str);
 
 int get_ugood_disks(char *cli, pd_slot_t disks[], int max_disks);
 int command_exists(const char *cmd);
-bool is_raid(const char *file);
 int create_raid(char *cli, const raid_config *conf);

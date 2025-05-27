@@ -42,6 +42,7 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
                     }
                 }
             }
+            plot(opt.fk_plot);
             goto done;
         case FAST_PLOT_IOPS://iops_log
             printf("处理 IOPS 绘图逻辑\n");
@@ -58,15 +59,16 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
                             if(libaio_run(&opt)){
                                 printf("libaio read/write error...\n");
                             }
-                            plot();
                         }
                     }
                 }
             }
+            plot(opt.fk_plot);
             goto done;
         case FAST_PLOT_TAILLAT://lat_log
             // 执行尾延迟相关逻辑
             printf("处理尾延迟绘图逻辑\n");
+            plot(opt.fk_plot);
             goto done;
         default:
             // 如果不是任何已知的枚举值，处理异常或报错

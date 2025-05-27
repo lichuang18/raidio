@@ -629,8 +629,15 @@ int run_rio(struct rio_args *args){
 	return 0;
 }
 
+// snprintf(log_file, sizeof(log_file), "result/raid-%s—results.log", fast_plot_names[args->fk_plot]);
+void plot(fast_plots fk_plot){
 
-void plot(){
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "python3 src/plot.py result/raid-%s-results.log iops", fast_plot_names[fk_plot]);
+    int ret = system(cmd);
+    if (ret != 0) {
+        printf("plot failed, [error: %d]...\n", ret);
+    }
     printf("Generate plot successful...\n");
 }
 void clean_rio(void)

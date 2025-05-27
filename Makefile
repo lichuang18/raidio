@@ -9,7 +9,7 @@ LDFLAGS = -laio -lpthread
 INCLUDES = 
 
 # 源文件
-SRCS = src/libaio_run.c src/librio.c src/raidio.c src/rio_check.c
+SRCS = src/libaio_run.c src/librio.c src/raidio.c
 
 # 目标文件（.o）
 OBJS = $(SRCS:.c=.o)

@@ -11,6 +11,14 @@
 #include <stdio.h>
 #include <time.h>
 
+#define BUCKETS 1000  // 0~999个桶，每桶表示10us，覆盖0~9999us（9.9ms）
+
+const char *fast_plot_names[] = {
+    "bw",
+    "iops",
+    "taillat"
+};
+
 typedef struct {
     int id;
     char file[128]; // sda
@@ -27,6 +35,8 @@ typedef struct {
     int direct;
     char *log_buf;
     u_int64_t log_offset;
+    int latency_hist[BUCKETS];  // 每线程自己的直方图
+    int total_ios;              // 总提交的 IO 数
 } thread_ctx_t;
 
 void *io_thread(void *arg) {
@@ -88,12 +98,12 @@ void *io_thread(void *arg) {
             } else{
                 io_prep_pwrite(&reqs[i].iocb, fd, reqs[i].buf, ctx->bs, offset);
             }
-            if(DEBUG_LAT) clock_gettime(CLOCK_REALTIME, &reqs[i].submit_ts);
+            if(LOG_LAT) clock_gettime(CLOCK_REALTIME, &reqs[i].submit_ts);
             iocbs[i] = &reqs[i].iocb;
             if(DEBUG_LBA){
                 clock_gettime(CLOCK_REALTIME, &log_record);  
-                printf("Submit | Time: %ld.%09ld | Thread %lu: Submit IO #%lu to LBA: %lu (offset=%lu)\n",
-                    log_record.tv_sec, log_record.tv_nsec,pthread_self(), submitteds + i, offset / 512, offset);
+                // printf("Submit | Time: %ld.%09ld | Thread %lu: Submit IO #%lu to LBA: %lu (offset=%lu)\n",
+                //     log_record.tv_sec, log_record.tv_nsec,pthread_self(), submitteds + i, offset / 512, offset);
             }
         }
         
@@ -108,7 +118,7 @@ void *io_thread(void *arg) {
         if (ret < 0) {
             perror("io_getevents");
         }
-        if(DEBUG_LAT){
+        if(LOG_LAT){
             for (int i = 0; i < ret; ++i) {
                 struct iocb *cb = events[i].obj;
                 // 找到对应 req 的索引
@@ -127,10 +137,14 @@ void *io_thread(void *arg) {
                     long start_us = reqs[req_idx].submit_ts.tv_sec * 1000000 + reqs[req_idx].submit_ts.tv_nsec / 1000;
                     long end_us = done_ts.tv_sec * 1000000 + done_ts.tv_nsec / 1000;
                     long latency_us = end_us - start_us;
+                    int bucket = latency_us / 10;
 
-                    printf("Complete | Time: %ld.%06ld | Thread %lu | IO#%lu | Latency: %ld us\n",
-                        done_ts.tv_sec, done_ts.tv_nsec / 1000,
-                        pthread_self(), completeds + i, latency_us);
+                    if (bucket >= BUCKETS) bucket = BUCKETS - 1;
+                    ctx->latency_hist[bucket]++;
+                    ctx->total_ios++;
+                    // printf("Complete | Time: %ld.%06ld | Thread %lu | IO#%lu | Latency: %ld us\n",
+                    //     done_ts.tv_sec, done_ts.tv_nsec / 1000,
+                    //     pthread_self(), completeds + i, latency_us);
                 }
             }
         }
@@ -206,10 +220,12 @@ int libaio_run(struct rio_args *args) {
         printf("Max Time  : %.2f sec\n", total_time/1000);
         printf("Total BW  : %.2f MB/s\n\n", mb / max_time * 1000);
     }
-    FILE *fp1 = fopen("result/raid—results.log", "a");  // 追加写
+    char log_file[256];
+    snprintf(log_file, sizeof(log_file), "result/raid-%s-results.log", fast_plot_names[args->fk_plot]);
+    FILE *fp1 = fopen(log_file, "a");  // 追加写
 
     if (fp1) {
-        fprintf(fp1, "%s, %d, %d, %.2f\n",args->rw_type, args->iodepth, args->thread_n, mb / max_time * 1000);
+        fprintf(fp1, "%s, %d, %" PRIu64 " , %d, %.2f\n",args->rw_type, args->iodepth, args->block_size/1024, args->thread_n, mb / max_time * 1000);
         fclose(fp1);
     }
 
