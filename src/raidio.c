@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
             printf("处理带宽绘图逻辑, seq big_bs num qd\n");
             char *rw_seq[] = {"read", "write"};
             int bs_seq[5] = {64, 128, 256, 1024, 0};
+            opt.size = 1024ULL * 1024 * 1024; //1G
             bs_seq[4] = full_stripe_size;
             for(int i=0 ; i < 2 ; ++i ){ //顺序读写
                 opt.rw_type = rw_seq[i];
@@ -46,6 +47,7 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
             goto done;
         case FAST_PLOT_IOPS://iops_log
             printf("处理 IOPS 绘图逻辑\n");
+            opt.size = 1024ULL * 1024 * 1024; //1G
             char *rw[] = {"randread", "randwrite"};
             int bs[3] = {4, 16, 32};
             for(int i=0 ; i < 2 ; ++i ){ //随机读写

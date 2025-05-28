@@ -467,8 +467,8 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
     a->raid_cf.strip_size = 64 ; //KB
     a->raid_cf.num_members = 1 ;
     a->raid_cf.capabilty = 100 ; //GB
-    a->raid_cf.raid_type = RAID_TYPE_HARD ; //GB
-    a->raid_cf.raid_level = 0 ; //GB
+    a->raid_cf.raid_type = RAID_TYPE_HARD ;
+    a->raid_cf.raid_level = 0 ; 
     a->raid_cf.raid_name[0] = '\0'; 
 
     int opt;
