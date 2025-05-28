@@ -44,6 +44,7 @@
 // };
 
 typedef enum {
+    FAST_PLOT_NONE = -1,
     FAST_PLOT_BW,
     FAST_PLOT_IOPS,
     FAST_PLOT_TAILLAT

@@ -457,26 +457,41 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
+
     //defaults
-    a->file[0] = '\0';
-	a->block_size = 4096;
+    a->file[0] = '\0'; //  /dev/sda
+	a->block_size = 1048576;//   seq bs默认 1M
 	a->rw_type = "read";
 	a->ioengine = "libaio";
+    a->size = 100ULL * 1024 * 1024;
+    a->iodepth = 16;
+    a->thread_n = 1;
     a->direct = 1 ;
-    //defaults raid config
-    a->raid_cf.strip_size = 64 ; //KB
-    a->raid_cf.num_members = 1 ;
-    a->raid_cf.capabilty = 100 ; //GB
-    a->raid_cf.raid_type = RAID_TYPE_HARD ;
+    //defaults    raid_config raid_cf
+    a->raid_cf.raid_type = RAID_TYPE_HARD;
     a->raid_cf.raid_level = 0 ; 
+    a->raid_cf.strip_size = 64 ;
+    a->raid_cf.num_members = 1 ;
+    a->raid_cf.wcache = 0;
+    a->raid_cf.rcache = 0;
+    a->raid_cf.pdcache = 0;
+    a->raid_cf.optimizer = 0; //默认不优化
+    a->raid_cf.capabilty = 100 ; //GB
     a->raid_cf.raid_name[0] = '\0'; 
+    //defaults  fast_plots fk_plot;
+    a->fk_plot = FAST_PLOT_NONE;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:b:r:h:s:i:q:t:d:w:a:c:e:g:j:k:l:m:n", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:r:b:h:s:i:q:t:d:w:a:c:e:g:j:k:l:m:n", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f': 
                 strncpy(a->file, optarg, sizeof(a->file) - 1);
                 a->file[sizeof(a->file) - 1] = '\0';  // 确保结尾安全
+                break;
+            case 'r': a->rw_type = optarg; 
+                if (strcmp(a->rw_type, "randread") == 0 || strcmp(a->rw_type, "randwrite") == 0) {
+                    a->block_size = 4096;   // rand默认bs 4K
+                }
                 break;
             case 'b':
 				a->block_size = parse_size(optarg);
@@ -484,12 +499,11 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
 					fprintf(stderr, "Invalid block size: %s\n", optarg);
 					exit(EXIT_FAILURE);
 				}else if(a->block_size > 128 *1024){
-					a->thread_n = 1; a->iodepth = 16;
+					a->thread_n = 1; 
 				} else{
-					a->thread_n = 16; a->iodepth = 16;
+					a->thread_n = 16;
 				}
                 break;
-            case 'r': a->rw_type = optarg; break;
 			case 's': a->size = parse_size(optarg);
 				if (a->size <= 0) {
 					fprintf(stderr, "Invalid block size: %s\n", optarg);

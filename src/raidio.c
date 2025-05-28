@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
                             opt.block_size = bs[m] * 1024;
                             if(libaio_run(&opt)){
                                 printf("libaio read/write error...\n");
+                                return 1;
                             }
                         }
                     }
