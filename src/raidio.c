@@ -9,16 +9,27 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
 	if (rio_parse_options(argc, argv, &opt))
 		goto done;
 
+
     int full_stripe_size = 0;
-    if(opt.raid_cf.raid_level == 0){
-        full_stripe_size = opt.raid_cf.num_members * opt.raid_cf.strip_size;
-        printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, opt.raid_cf.num_members * opt.raid_cf.strip_size);
-    } else if(opt.raid_cf.raid_level == 5){
-        full_stripe_size = (opt.raid_cf.num_members - 1)  * opt.raid_cf.strip_size;
-        printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, (opt.raid_cf.num_members - 1) * opt.raid_cf.strip_size);
-    } else if(opt.raid_cf.raid_level == 6){
-        full_stripe_size = (opt.raid_cf.num_members - 2)  * opt.raid_cf.strip_size;
-        printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, (opt.raid_cf.num_members - 2) * opt.raid_cf.strip_size);
+
+    switch (opt.raid_cf.raid_type) {
+        case RAID_TYPE_HARD:
+        case RAID_TYPE_SOFT:
+            if(opt.raid_cf.raid_level == 0){
+                full_stripe_size = opt.raid_cf.num_members * opt.raid_cf.strip_size;
+                printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, opt.raid_cf.num_members * opt.raid_cf.strip_size);
+            } else if(opt.raid_cf.raid_level == 5){
+                full_stripe_size = (opt.raid_cf.num_members - 1)  * opt.raid_cf.strip_size;
+                printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, (opt.raid_cf.num_members - 1) * opt.raid_cf.strip_size);
+            } else if(opt.raid_cf.raid_level == 6){
+                full_stripe_size = (opt.raid_cf.num_members - 2)  * opt.raid_cf.strip_size;
+                printf("%d disks raid%d, full stripe size :%d KB\n", opt.raid_cf.num_members, opt.raid_cf.raid_level, (opt.raid_cf.num_members - 2) * opt.raid_cf.strip_size);
+            }
+            break;
+        case RAID_TYPE_NONE:
+            goto normal;
+        default:
+            goto done;
     }
 
     const int qd[5] = {1, 4, 16, 64, 256};
@@ -38,7 +49,21 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
                         opt.iodepth = qd[k];
                         for(int m = 0 ; m < 5 ; ++m){ //bs
                             opt.block_size = bs_seq[m] * 1024;
-                            libaio_run(&opt);
+                            if (m == 4) {
+                                int is_duplicate = 0;
+                                for (int x = 0; x < 4; ++x) {
+                                    if (bs_seq[4] == bs_seq[x]) {
+                                        is_duplicate = 1;
+                                        break;
+                                    }
+                                }
+                                if (is_duplicate) {
+                                    printf("bs_seq[4] is duplicate, skip.\n");
+                                    break;  // 或 return，如果你希望整个测试退出
+                                }
+                            }
+                            if(opt.block_size)
+                                libaio_run(&opt);
                         }
                     }
                 }
@@ -58,6 +83,19 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
                         opt.iodepth = qd[k];
                         for(int m = 0 ; m < 3 ; ++m){ //bs
                             opt.block_size = bs[m] * 1024;
+                            if (m == 4) {
+                                int is_duplicate = 0;
+                                for (int x = 0; x < 4; ++x) {
+                                    if (bs_seq[4] == bs_seq[x]) {
+                                        is_duplicate = 1;
+                                        break;
+                                    }
+                                }
+                                if (is_duplicate) {
+                                    printf("bs_seq[4] is duplicate, skip.\n");
+                                    break;  // 或 return，如果你希望整个测试退出
+                                }
+                            }
                             if(libaio_run(&opt)){
                                 printf("libaio read/write error...\n");
                                 return 1;
@@ -91,7 +129,6 @@ normal:
             printf("libaio read/write error...\n");
         }
     }
-
 
 done:
 	//clean_rio();

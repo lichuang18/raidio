@@ -65,23 +65,40 @@ void *io_thread(void *arg) {
         struct timespec submit_ts;
     } reqs[ctx->qd];
     
+    // 1. 分配一块大内存，满足对齐要求（例如 O_DIRECT 要求 4096 对齐）
+    void *big_buf = NULL;
+    if (posix_memalign(&big_buf, 4096, ctx->qd * ctx->bs) != 0) {
+        perror("posix_memalign");
+        exit(1);
+    }
+
+    // 2. 切分大内存，赋值给每个 reqs[i].buf
     for (int i = 0; i < ctx->qd; ++i) {
-        if (posix_memalign(&reqs[i].buf, 512, ctx->bs)) {
-            perror("posix_memalign");
-            exit(1);
-        }
+        reqs[i].buf = (char *)big_buf + i * ctx->bs;
         memset(reqs[i].buf, (strcmp(ctx->rw, "write") == 0 || strcmp(ctx->rw, "randwrite") == 0) ? 0xAB : 0, ctx->bs);
     }
+
+    // for (int i = 0; i < ctx->qd; ++i) {
+    //     if (posix_memalign(&reqs[i].buf, 4096, ctx->bs)) {
+    //         perror("posix_memalign");
+    //         exit(1);
+    //     }
+    //     for (size_t j = 0; j < ctx->bs; j++) {
+    //         ((char *)reqs[i].buf)[j] = rand() % 256;
+    //     }
+    //     // memset(reqs[i].buf, (strcmp(ctx->rw, "write") == 0 || strcmp(ctx->rw, "randwrite") == 0) ? 0xAB : 0, ctx->bs);
+    // }
 
     //u_int64_t offset = ctx->offset_start;
     u_int64_t submitteds = 0, completeds = 0;
     srand(time(NULL) + pthread_self());
     u_int64_t nr_requests = ctx->size / ctx->bs;
     double elapsed_ms = 0;
-    struct timeval start, end;
+    //struct timeval start, end;
     struct timespec log_record;
-
-    gettimeofday(&start, NULL);
+    struct timespec start, end;
+    // gettimeofday(&start, NULL);
+    clock_gettime(CLOCK_REALTIME, &start);
     while(nr_requests > submitteds){
         u_int64_t ios_to_submit = (nr_requests - submitteds) < (u_int64_t)ctx->qd ? (nr_requests - submitteds) : (u_int64_t)ctx->qd;
         for (size_t i = 0; i < ios_to_submit; ++i) {
@@ -134,11 +151,13 @@ void *io_thread(void *arg) {
                     struct timespec done_ts;
                     clock_gettime(CLOCK_REALTIME, &done_ts);
 
-                    long start_us = reqs[req_idx].submit_ts.tv_sec * 1000000 + reqs[req_idx].submit_ts.tv_nsec / 1000;
-                    long end_us = done_ts.tv_sec * 1000000 + done_ts.tv_nsec / 1000;
-                    long latency_us = end_us - start_us;
-                    int bucket = latency_us / 10;
-
+                    // long start_us = reqs[req_idx].submit_ts.tv_sec * 1000000 + reqs[req_idx].submit_ts.tv_nsec / 1000;
+                    // long end_us = done_ts.tv_sec * 1000000 + done_ts.tv_nsec / 1000;
+                    // long latency_us = end_us - start_us;
+                    uint64_t start_ns = reqs[req_idx].submit_ts.tv_sec * 1000000000ULL + reqs[req_idx].submit_ts.tv_nsec;
+                    uint64_t end_ns = done_ts.tv_sec * 1000000000ULL + done_ts.tv_nsec;
+                    uint64_t latency_ns = end_ns - start_ns;
+                    int bucket = latency_ns / 1000; //每 1us 一个桶
                     if (bucket >= BUCKETS) bucket = BUCKETS - 1;
                     ctx->latency_hist[bucket]++;
                     ctx->total_ios++;
@@ -150,11 +169,18 @@ void *io_thread(void *arg) {
         }
         completeds += ret;   
     }
-    gettimeofday(&end, NULL);
-    long start_us = start.tv_sec * 1000000 + start.tv_usec;
-    long end_us = end.tv_sec * 1000000 + end.tv_usec;
-    elapsed_ms = (end_us - start_us) / 1000.0;
-
+    // gettimeofday(&end, NULL);
+    // long start_us = start.tv_sec * 1000000 + start.tv_usec;
+    // long end_us = end.tv_sec * 1000000 + end.tv_usec;
+    // elapsed_ms = (end_us - start_us) / 1000.0;
+    clock_gettime(CLOCK_REALTIME, &end);
+    // long start_us = start.tv_sec * 1000000 + start.tv_usec;
+    // long end_us = end.tv_sec * 1000000 + end.tv_usec;
+    // elapsed_ms = (end_us - start_us) / 1000.0;
+    u_int64_t start_ns = start.tv_sec * 1000000000L + start.tv_nsec;
+    u_int64_t end_ns = end.tv_sec * 1000000000L + end.tv_nsec;
+    // u_int64_t elas_ns = end_ns - start_ns ;
+    elapsed_ms = (end_ns - start_ns) / 1e6; // 转换为毫秒
     //total_elapsed_ms += elapsed_ms;
    
     ctx->submitted = submitteds;
@@ -163,6 +189,11 @@ void *io_thread(void *arg) {
 
     io_destroy(ioc);
     close(fd);
+
+    // for (int i = 0; i < ctx->qd; ++i) {// 线程内释放资源
+    //     free(reqs[i].buf);   
+    // }
+    free(big_buf);
     pthread_exit(NULL);
 }
 

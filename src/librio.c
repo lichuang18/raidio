@@ -69,6 +69,11 @@ int check_vd_initialization_success(const char *cli, int vd_number) {
     return -1;
 }
 
+
+void optimizer_raid(u_int64_t block_size, const char *cli, char *disk_name) {
+    printf("执行优化raid逻辑...基于不同bs(%" PRIu64 ")配置raid盘(%s)内核参数, 或用(%s)优化\n", block_size, disk_name, cli);
+}
+
 int get_vd_id_by_name(const char *cli, const char *target_name) {
 
     char cmd[256];
@@ -562,23 +567,23 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
     } else if (a->raid_cf.raid_type == RAID_TYPE_HARD) {
         // 硬 RAID 分支逻辑
         printf("Detected hard RAID configuration.\n");
+        char cli[32];
+        if (command_exists("storcli")) {
+            printf("Found cli cmd: storcli\n");
+            strcpy(cli, "storcli");
+        } else if (command_exists("storcli64")) {
+            printf("Found cli cmd: storcli64\n");
+            strcpy(cli, "storcli64");
+        } else {
+            printf("Neither storcli nor storcli64 found. If you are broadcom 96xx raid controller,Please choose new storcli tool\n");
+            printf("Please install storcli tool\n");
+            return 1;
+        }
         if(a->file[0] ==  '\0'){
             printf("Device is NULL, Prepare create RAID...\n");
-            
-            strncpy(a->file, "/dev/sda", sizeof(a->file) - 1);
-            a->file[sizeof(a->file) - 1] = '\0'; 
-            return 0; //注意删除，调试用
-
-            char cli[32];
-            if (command_exists("storcli")) {
-                printf("Found cli cmd: storcli\n");
-                strcpy(cli, "storcli");
-            } else if (command_exists("storcli64")) {
-                printf("Found cli cmd: storcli64\n");
-                strcpy(cli, "storcli64");
-            } else {
-                printf("Neither storcli nor storcli64 found. If you are broadcom 96xx raid controller,Please choose new storcli tool\n");
-            }
+            // strncpy(a->file, "/dev/sda", sizeof(a->file) - 1);
+            // a->file[sizeof(a->file) - 1] = '\0'; 
+            // return 0; //注意删除，调试用
             printf("============================================\n");
             printf("=== Start Create RAID with Configuration ===\n");
             printf("===    会按序号依次选取指定数量,组建raid      ===\n");
@@ -609,24 +614,36 @@ int rio_parse_options(int argc, char *argv[], struct rio_args *a)
                 printf("Full Init RAID failed...\n");
                 return 1;
             }
-            //if(创建失败 或者 init 失败)  退出测试
             printf("===           End Full Init RAID         ===\n");
-            printf("Add VD File: %s\n", a->file);
+            printf("Add VD %d File: %s\n", vd_number, a->file);
+            if(a->raid_cf.optimizer){
+                printf("Try Optimizer RAID...\n");
+                optimizer_raid(a->block_size, cli, a->file);
+            }
+            
             return 0;
-        } else {
+        } else { //已经知道盘符，但不知道如何和vd对上，这个逻辑需要思考，然后完善下面的代码
             int result = check_lsscsi_vendor(a->file);
             if (result == 1) {
                 printf("Device %s vendor is BROADCOM or LSI, so it is RAID\n", a->file);
+
+                if(a->raid_cf.optimizer){
+                    printf("Try Optimizer RAID...\n");
+                    optimizer_raid(a->block_size, cli, a->file);
+                }
+
             } else if (result == 0) {
                 printf("Device %s vendor is not BROADCOM/LSI or not found\n", a->file);
                 printf("Device %s maybe is nonRAID, go on normal disk test...\n", a->file);
-                return 0;
+                goto none_raid;
+                //return 0;
             } else {
                 printf("Error running lsscsi\n");
             }
         }
         // 在这里执行针对硬 RAID 的处理
     } else if (a->raid_cf.raid_type == RAID_TYPE_NONE) {
+none_raid:
         printf("Detected None RAID configuration.\n");
         return 0;
     } else {
@@ -647,7 +664,7 @@ int run_rio(struct rio_args *args){
 void plot(fast_plots fk_plot){
 
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "python3 src/plot.py result/raid-%s-results.log iops", fast_plot_names[fk_plot]);
+    snprintf(cmd, sizeof(cmd), "python3 src/plot.py result/raid-%s-results.log %s", fast_plot_names[fk_plot], fast_plot_names[fk_plot]);
     int ret = system(cmd);
     if (ret != 0) {
         printf("plot failed, [error: %d]...\n", ret);
