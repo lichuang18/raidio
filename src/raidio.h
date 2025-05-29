@@ -20,28 +20,18 @@
 #include <time.h>
 #include <math.h>
 #include <inttypes.h>  // 为 PRIu64 等宏
-#define DEBUG 1
+#define DEBUG 0
 #define DEBUG_LBA 0
-
 
 #define LOG_LAT 1
 
-// plot data
-// struct plot_data_y {
-// 	float iops;
-//     float bw; //MB/s
-//     float lat; //us
-//     float lat_99; //us
-//     float lat_999; //us
-// 	// 可以根据需要扩展更多字段
-// };
-
-// struct plot_data_x {
-// 	struct plot_data_y pd;
-//     int qd[5];// 1 4 16 64 256
-//     int num[4];// 1 4 16 32
-//     int bs[8];// unit KB  4 16 32 64 128 256 x 1024 
-// };
+#define MAX_PDS 2
+typedef struct {
+    int eid;
+    int slt;
+    char cli[16];
+} pd_info_t;
+extern pd_info_t g_pd_list[MAX_PDS];
 
 typedef enum {
     FAST_PLOT_NONE = -1,
@@ -73,15 +63,16 @@ typedef struct {
     int rcache; //1 开启 0关闭  hard
     int pdcache; //1 开启 0关闭 hard
     int optimizer; //1 开启 0关闭 hard
-    int capabilty;//GB
+    int capability;//GB
     char raid_name[64];
+    char raid_status[16];
 } raid_config;
 
 
 struct rio_args {
-	char file[256]; //必需
-	uint64_t block_size; //bs
-	char *rw_type; //rw
+	char file[256];
+	uint64_t block_size;
+	char *rw_type;
     const char *ioengine;
     uint64_t size;
     int iodepth;
@@ -89,7 +80,6 @@ struct rio_args {
     int direct;
     raid_config raid_cf;
     fast_plots fk_plot;
-	// 可以根据需要扩展更多字段
 };
 
 
@@ -98,11 +88,11 @@ extern int rio_parse_options(int, char **, struct rio_args *args);
 // extern int parse_jobs_ini(char *, int, int, int);
 // extern int parse_cmd_line(int, char **, int);
 extern int libaio_run(struct rio_args *args);
-extern int run_rio(struct rio_args *args);
-extern void clean_rio(void);
 extern void plot(fast_plots fk_plot);
 extern uint64_t parse_size(const char *str);
 
+
+void set_raid_optl(const char *cli, int raid_level);
 int get_ugood_disks(char *cli, pd_slot_t disks[], int max_disks);
 int command_exists(const char *cmd);
 int create_raid(char *cli, const raid_config *conf);

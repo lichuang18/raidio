@@ -32,22 +32,25 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
             goto done;
     }
 
-    const int qd[5] = {1, 4, 16, 64, 256};
-    const int num[4] = {1, 4, 16, 32};
+    const int qd[] = {1, 4, 16, 64, 256};
+    size_t qd_len = sizeof(qd) / sizeof(qd[0]);
+    const int num[] = {1, 4, 16, 32};
+    size_t num_len = sizeof(num) / sizeof(num[0]);
     switch (opt.fk_plot) {
         case FAST_PLOT_BW: //bw_log
             printf("处理带宽绘图逻辑, seq big_bs num qd\n");
             char *rw_seq[] = {"read", "write"};
-            int bs_seq[5] = {64, 128, 256, 1024, 0};
-            opt.size = 1024ULL * 1024 * 1024; //1G
-            bs_seq[4] = full_stripe_size;
+            int bs_seq[] = {64, 128, 256, 1024, 0};
+            // opt.size = 1024ULL * 1024 * 1024; //1G
+            size_t bs_seq_len = sizeof(bs_seq) / sizeof(bs_seq[0]);
+            bs_seq[bs_seq_len-1] = full_stripe_size;
             for(int i=0 ; i < 2 ; ++i ){ //顺序读写
                 opt.rw_type = rw_seq[i];
-                for(int j = 0 ; j < 4 ; ++j){//num
+                for(size_t j = 0 ; j < num_len ; ++j){//num
                     opt.thread_n = num[j];
-                    for(int k = 0 ; k < 5 ; ++k){ //qd
+                    for(size_t k = 0 ; k < qd_len ; ++k){ //qd
                         opt.iodepth = qd[k];
-                        for(int m = 0 ; m < 5 ; ++m){ //bs
+                        for(size_t m = 0 ; m < bs_seq_len ; ++m){ //bs
                             opt.block_size = bs_seq[m] * 1024;
                             if (m == 4) {
                                 int is_duplicate = 0;
@@ -72,16 +75,17 @@ int main(int argc, char *argv[]) //todo, add char *envp[]
             goto done;
         case FAST_PLOT_IOPS://iops_log
             printf("处理 IOPS 绘图逻辑\n");
-            opt.size = 1024ULL * 1024 * 1024; //1G
+            //opt.size = 1024ULL * 1024 * 1024; //1G
             char *rw[] = {"randread", "randwrite"};
-            int bs[3] = {4, 16, 32};
+            int bs[] = {4, 16, 32};
+            size_t bs_len = sizeof(bs) / sizeof(bs[0]);
             for(int i=0 ; i < 2 ; ++i ){ //随机读写
                 opt.rw_type = rw[i];
-                for(int j = 0 ; j < 4 ; ++j){//num
+                for(size_t j = 0 ; j < num_len ; ++j){//num
                     opt.thread_n = num[j];
-                    for(int k = 0 ; k < 5 ; ++k){ //qd
+                    for(size_t k = 0 ; k < qd_len ; ++k){ //qd
                         opt.iodepth = qd[k];
-                        for(int m = 0 ; m < 3 ; ++m){ //bs
+                        for(size_t m = 0 ; m < bs_len ; ++m){ //bs
                             opt.block_size = bs[m] * 1024;
                             if (m == 4) {
                                 int is_duplicate = 0;
@@ -131,6 +135,21 @@ normal:
     }
 
 done:
-	//clean_rio();
+    if(strcmp(opt.raid_cf.raid_status, "degrade") == 0){
+        char cli[32];
+        if (command_exists("storcli")) {
+            printf("--- Found cli-cmd: storcli ---\n");
+            strcpy(cli, "storcli");
+        } else if (command_exists("storcli64")) {
+            printf("---Found cli-cmd: storcli64---\n");
+            strcpy(cli, "storcli64");
+        } else {
+            printf("--- Found cli-cmd: storcli ---\n");
+            printf("---  未发现raid命令行工具...  ---\n");
+            printf("---  请安装raid的管理工具...  ---\n");
+            return 1;
+        }
+        set_raid_optl(cli, opt.raid_cf.raid_level);
+    }
 	return 0;
 }

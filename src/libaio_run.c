@@ -72,22 +72,10 @@ void *io_thread(void *arg) {
         exit(1);
     }
 
-    // 2. 切分大内存，赋值给每个 reqs[i].buf
     for (int i = 0; i < ctx->qd; ++i) {
         reqs[i].buf = (char *)big_buf + i * ctx->bs;
         memset(reqs[i].buf, (strcmp(ctx->rw, "write") == 0 || strcmp(ctx->rw, "randwrite") == 0) ? 0xAB : 0, ctx->bs);
     }
-
-    // for (int i = 0; i < ctx->qd; ++i) {
-    //     if (posix_memalign(&reqs[i].buf, 4096, ctx->bs)) {
-    //         perror("posix_memalign");
-    //         exit(1);
-    //     }
-    //     for (size_t j = 0; j < ctx->bs; j++) {
-    //         ((char *)reqs[i].buf)[j] = rand() % 256;
-    //     }
-    //     // memset(reqs[i].buf, (strcmp(ctx->rw, "write") == 0 || strcmp(ctx->rw, "randwrite") == 0) ? 0xAB : 0, ctx->bs);
-    // }
 
     //u_int64_t offset = ctx->offset_start;
     u_int64_t submitteds = 0, completeds = 0;
@@ -219,7 +207,7 @@ int libaio_run(struct rio_args *args) {
         contexts[i].id = i;
         contexts[i].size = size;
         contexts[i].direct = args->direct;
-        contexts[i].offset_start = i * per_thread_size;
+        contexts[i].offset_start = i * per_thread_size; //默认offset从0开始
         // contexts[i].buf = aligned_alloc(4096, bs * qd);
         // if (!contexts[i].buf) {
         //     perror("aligned_alloc");
@@ -251,12 +239,24 @@ int libaio_run(struct rio_args *args) {
         printf("Max Time  : %.2f sec\n", total_time/1000);
         printf("Total BW  : %.2f MB/s\n\n", mb / max_time * 1000);
     }
+
     char log_file[256];
-    snprintf(log_file, sizeof(log_file), "result/raid-%s-results.log", fast_plot_names[args->fk_plot]);
+    if (args->fk_plot == FAST_PLOT_NONE) {
+        char log_file[256];
+        snprintf(log_file, sizeof(log_file), "result/raid-normal-results.log");
+    } else {
+        snprintf(log_file, sizeof(log_file), "result/raid-%s-results.log", fast_plot_names[args->fk_plot]);
+    }
     FILE *fp1 = fopen(log_file, "a");  // 追加写
 
     if (fp1) {
-        fprintf(fp1, "%s, %d, %" PRIu64 " , %d, %.2f\n",args->rw_type, args->iodepth, args->block_size/1024, args->thread_n, mb / max_time * 1000);
+        // fprintf(fp1, "%s, %d, %" PRIu64 " , %d, %.2f\n",args->rw_type, args->iodepth, args->block_size/1024, args->thread_n, mb / max_time * 1000);
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);  // 获取当前真实时间
+        //
+        //fprintf(fp1, "%s, %d, %" PRIu64 " , %d, %.2f\n",args->rw_type, args->iodepth, args->block_size/1024, args->thread_n, mb / max_time * 1000);
+        long long nanoseconds = (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;//, %lld
+        fprintf(fp1, "%s, %d, %" PRIu64 " , %d, %.2f, %lld\n",args->rw_type, args->iodepth, args->block_size/1024, args->thread_n, mb / max_time * 1000, nanoseconds);
         fclose(fp1);
     }
 

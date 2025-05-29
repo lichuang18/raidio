@@ -10,7 +10,7 @@ def plot_bandwidth(filename, plot_type):
         sys.exit(1)
 
     df = pd.read_csv(filename, header=None,
-                     names=['rw', 'qd', 'bs_kb', 'num_threads', 'bw_mb'])
+                     names=['rw', 'qd', 'bs_kb', 'num_threads', 'bw_mb', 'time_stamp'])
 
     for rw_type in ['read', 'write']:
         df_rw = df[df['rw'] == rw_type]
@@ -72,7 +72,7 @@ def plot_bandwidth(filename, plot_type):
         fig.legend(handles, labels, loc='lower center', ncol=len(bs_list), bbox_to_anchor=(0.5, 0.01))
 
         # 只调整子图位置，不动标题和图例
-        fig.subplots_adjust(top=0.86, bottom=0.16, hspace=0.35)
+        fig.subplots_adjust(top=0.86, bottom=0.16, hspace=0.4)
         # if plot_type == 'bw':
         #     plt.savefig(f"result/{rw_type}_bw_plot.png", dpi=300)
         # elif plot_type == 'iops':
